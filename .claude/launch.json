@@ -1,0 +1,23 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "vite-dev",
+      "runtimeExecutable": "/bin/zsh",
+      "runtimeArgs": [
+        "-c",
+        "export PATH=\"$HOME/.local/node/bin:$PATH\" NODE_EXTRA_CA_CERTS=\"$HOME/.local/corp-ca.pem\" && cd \"/Users/chris.kuziara/Claude/Projects/Autio_Clip-Studio_v1/clip-studio\" && npm run dev"
+      ],
+      "port": 5173
+    },
+    {
+      "name": "electron-dev",
+      "runtimeExecutable": "/bin/zsh",
+      "runtimeArgs": [
+        "-c",
+        "export PATH=\"$HOME/.local/node/bin:$PATH\" NODE_EXTRA_CA_CERTS=\"$HOME/.local/corp-ca.pem\" && cd \"/Users/chris.kuziara/Claude/Projects/Autio_Clip-Studio_v1/clip-studio\" && npm run electron:dev"
+      ],
+      "port": 5173
+    }
+  ]
+}

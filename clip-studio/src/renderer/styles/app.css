@@ -1,0 +1,51 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  width: 100%;
+}
+
+.cs-scroll::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+.cs-scroll::-webkit-scrollbar-thumb {
+  background: var(--slate-300);
+  border-radius: 9999px;
+}
+.cs-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+@keyframes cs-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* indeterminate progress: a band that sweeps left→right while a stage reports no percentage */
+@keyframes cs-indeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(400%);
+  }
+}
+
+button {
+  font-family: var(--font-sans);
+}
+
+input {
+  font-family: inherit;
+}

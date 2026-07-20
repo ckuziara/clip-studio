@@ -1,0 +1,309 @@
+/* ===========================================================================
+   Moonbug Design System — Foundations
+   Based on the PrimeNG **Lara** preset (indigo + slate, soft 6px radii,
+   signature 0.2rem outer focus ring, 0.2s transitions).
+   See lara-spec.md for the full upstream reference.
+
+   Two visual layers coexist:
+   1. Moonbug master brand — the playful bubble wordmark in #1502f3 (raster
+      asset, used ONLY for the lockup; never apply this colour to UI chrome).
+   2. The Lara UI layer    — indigo primary, slate neutrals, severity triad
+      (green/sky/orange/red), all interactive surfaces.
+   =========================================================================== */
+
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+
+:root {
+  /* ======================================================================
+     1.  BRAND  (Moonbug — wordmark only)
+     ====================================================================== */
+  --mb-blue:           #1502f3;   /* the wordmark blue — DO NOT use for UI */
+  --mb-blue-ink:       #0a017a;
+  --mb-blue-tint:      #e6e3ff;
+
+  /* ======================================================================
+     2.  PALETTE — Indigo (primary / interactive)
+         Tailwind-aligned. Lara uses 500 in light mode, 400 in dark.
+     ====================================================================== */
+  --indigo-50:   #eef2ff;
+  --indigo-100:  #e0e7ff;
+  --indigo-200:  #c7d2fe;   /* focus-ring colour for primary */
+  --indigo-300:  #a5b4fc;
+  --indigo-400:  #818cf8;
+  --indigo-500:  #6366f1;   /* primary */
+  --indigo-600:  #4f46e5;   /* hover */
+  --indigo-700:  #4338ca;   /* active / pressed */
+  --indigo-800:  #3730a3;
+  --indigo-900:  #312e81;
+  --indigo-950:  #1e1b4b;
+
+  /* ======================================================================
+     3.  PALETTE — Slate (neutrals / surfaces — light mode)
+     ====================================================================== */
+  --slate-0:     #ffffff;
+  --slate-50:    #f8fafc;
+  --slate-100:   #f1f5f9;
+  --slate-200:   #e2e8f0;   /* subtle border, secondary focus ring */
+  --slate-300:   #cbd5e1;   /* input border */
+  --slate-400:   #94a3b8;   /* hover border, icons */
+  --slate-500:   #64748b;   /* placeholder, muted */
+  --slate-600:   #475569;
+  --slate-700:   #334155;   /* body text */
+  --slate-800:   #1e293b;   /* heading text */
+  --slate-900:   #0f172a;
+  --slate-950:   #020617;
+
+  /* ======================================================================
+     4.  PALETTE — Zinc (dark-mode surfaces)
+     ====================================================================== */
+  --zinc-50:     #fafafa;
+  --zinc-100:    #f4f4f5;
+  --zinc-200:    #e4e4e7;
+  --zinc-300:    #d4d4d8;
+  --zinc-400:    #a1a1aa;
+  --zinc-500:    #71717a;
+  --zinc-600:    #52525b;
+  --zinc-700:    #3f3f46;
+  --zinc-800:    #27272a;
+  --zinc-900:    #18181b;
+  --zinc-950:    #09090b;
+
+  /* ======================================================================
+     5.  PALETTE — Severity / status (Lara fixed mapping)
+     ====================================================================== */
+  --green-50:   #f0fdf4;  --green-200: #bbf7d0;
+  --green-500:  #22c55e;  --green-600: #16a34a;  --green-700: #15803d;
+
+  --sky-50:     #f0f9ff;  --sky-200:   #bae6fd;
+  --sky-500:    #0ea5e9;  --sky-600:   #0284c7;  --sky-700:   #0369a1;
+
+  --orange-50:  #fff7ed;  --orange-200:#fed7aa;
+  --orange-500: #f97316;  --orange-600:#ea580c;  --orange-700:#c2410c;
+
+  --red-50:     #fef2f2;  --red-200:   #fecaca;
+  --red-500:    #ef4444;  --red-600:   #dc2626;  --red-700:   #b91c1c;
+
+  --purple-50:  #faf5ff;  --purple-200:#e9d5ff;
+  --purple-500: #a855f7;  --purple-600:#9333ea;  --purple-700:#7e22ce;
+
+  /* ======================================================================
+     6.  SEMANTIC TOKENS — Light mode (the values you should use day-to-day)
+     ====================================================================== */
+  --bg-canvas:           var(--slate-50);
+  --bg-surface:          var(--slate-0);
+  --bg-subtle:           var(--slate-100);
+
+  --border-subtle:       var(--slate-200);
+  --border-strong:       var(--slate-300);
+  --border-hover:        var(--slate-400);
+
+  --fg-default:          var(--slate-700);
+  --fg-strong:           var(--slate-800);
+  --fg-muted:            var(--slate-500);
+
+  --primary:             var(--indigo-500);
+  --primary-hover:       var(--indigo-600);
+  --primary-active:      var(--indigo-700);
+  --primary-contrast:    var(--slate-0);
+
+  --highlight-bg:        var(--indigo-50);
+  --highlight-fg:        var(--indigo-700);
+
+  --mask-bg:             rgba(0, 0, 0, 0.4);
+
+  /* Severity semantic aliases */
+  --success:  var(--green-500);
+  --info:     var(--sky-500);
+  --warn:     var(--orange-500);
+  --danger:   var(--red-500);
+  --help:     var(--purple-500);
+
+  /* ======================================================================
+     7.  TYPOGRAPHY
+         Inter is the recommended pairing for Lara. 14px base.
+     ====================================================================== */
+  --font-sans:    "Inter", system-ui, -apple-system, BlinkMacSystemFont,
+                  "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono:    ui-monospace, SFMono-Regular, "SF Mono", Menlo,
+                  Consolas, "Liberation Mono", monospace;
+
+  /* Sizes (rem, anchored to 1rem = 16px) */
+  --fs-xs:    0.75rem;     /* 12px */
+  --fs-sm:    0.875rem;    /* 14px — sm button/input */
+  --fs-base:  0.875rem;    /* 14px — DEFAULT base size */
+  --fs-md:    1rem;        /* 16px */
+  --fs-lg:    1.125rem;    /* 18px — lg button/input, h3 */
+  --fs-xl:    1.25rem;     /* 20px — h3 */
+  --fs-2xl:   1.5rem;      /* 24px — h2 */
+  --fs-3xl:   2rem;        /* 32px — h1 */
+
+  --fw-regular:  400;
+  --fw-medium:   500;
+  --fw-semibold: 600;
+  --fw-bold:     700;
+
+  --lh-tight:    1.2;
+  --lh-normal:   1.5;
+
+  /* ======================================================================
+     8.  SPACING — base 4px
+     ====================================================================== */
+  --space-1:    0.25rem;   /* 4 */
+  --space-2:    0.5rem;    /* 8 */
+  --space-3:    0.75rem;   /* 12 */
+  --space-4:    1rem;      /* 16 */
+  --space-5:    1.25rem;   /* 20 */
+  --space-6:    1.5rem;    /* 24 */
+  --space-8:    2rem;      /* 32 */
+  --space-10:   2.5rem;    /* 40 */
+  --space-12:   3rem;      /* 48 */
+  --space-16:   4rem;      /* 64 */
+
+  /* ======================================================================
+     9.  RADII
+     ====================================================================== */
+  --radius-xs:   2px;     /* chips, small badges */
+  --radius-sm:   4px;     /* list items, checkboxes, nav items */
+  --radius-md:   6px;     /* DEFAULT — inputs, buttons, cards, dropdowns */
+  --radius-lg:   8px;
+  --radius-xl:   12px;    /* modals / dialogs */
+  --radius-pill: 9999px;
+
+  /* ====================================================================== 
+     10. SHADOWS  (Lara recipes — verbatim from the upstream spec)
+     ====================================================================== */
+  --shadow-field:   0 0 #0000, 0 0 #0000, 0 1px 2px 0 rgba(18, 18, 23, 0.05);
+  --shadow-popover: 0 4px 6px -1px rgba(0, 0, 0, 0.1),
+                    0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  --shadow-modal:   0 20px 25px -5px rgba(0, 0, 0, 0.1),
+                    0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  --shadow-raised:  0 3px 1px -2px rgba(0,0,0,0.2),
+                    0 2px 2px 0    rgba(0,0,0,0.14),
+                    0 1px 5px 0    rgba(0,0,0,0.12);
+
+  /* ======================================================================
+     11. FOCUS RINGS  (the SIGNATURE Lara detail — 0.2rem outer glow
+         in the action's -200 shade. Never use a hard outline.)
+     ====================================================================== */
+  --ring-primary:   0 0 0 0.2rem var(--indigo-200);
+  --ring-secondary: 0 0 0 0.2rem var(--slate-200);
+  --ring-success:   0 0 0 0.2rem var(--green-200);
+  --ring-info:      0 0 0 0.2rem var(--sky-200);
+  --ring-warn:      0 0 0 0.2rem var(--orange-200);
+  --ring-danger:    0 0 0 0.2rem var(--red-200);
+  --ring-help:      0 0 0 0.2rem var(--purple-200);
+
+  /* ======================================================================
+     12. MOTION
+         Lara is consistent: 0.2s for everything (color, background, border).
+     ====================================================================== */
+  --duration:       0.2s;
+  --ease:           ease;
+  --transition-all: all var(--duration) var(--ease);
+
+  /* ======================================================================
+     13. Z-INDEX
+     ====================================================================== */
+  --z-sidebar:  20;
+  --z-overlay:  40;
+  --z-modal:    50;
+  --z-toast:    60;
+}
+
+/* ===========================================================================
+   Optional dark-mode token overrides — opt in by adding `.dark` to <html>.
+   =========================================================================== */
+.dark {
+  --bg-canvas:        var(--zinc-950);
+  --bg-surface:       var(--zinc-900);
+  --bg-subtle:        var(--zinc-800);
+  --border-subtle:    var(--zinc-700);
+  --border-strong:    var(--zinc-600);
+  --border-hover:     var(--zinc-500);
+  --fg-default:       var(--slate-0);
+  --fg-strong:        var(--slate-0);
+  --fg-muted:         var(--zinc-400);
+  --primary:          var(--indigo-400);
+  --primary-hover:    var(--indigo-300);
+  --primary-contrast: var(--zinc-900);
+  --highlight-bg:     rgba(99, 102, 241, 0.16);
+  --highlight-fg:     var(--indigo-300);
+  --mask-bg:          rgba(0, 0, 0, 0.6);
+}
+
+/* ===========================================================================
+   Semantic typography classes — compose into components.
+   =========================================================================== */
+.t-h1 {
+  font-family: var(--font-sans);
+  font-size: var(--fs-3xl);
+  font-weight: var(--fw-bold);
+  color: var(--fg-strong);
+  line-height: var(--lh-tight);
+  letter-spacing: -0.01em;
+}
+.t-h2 {
+  font-family: var(--font-sans);
+  font-size: var(--fs-2xl);
+  font-weight: var(--fw-bold);
+  color: var(--fg-strong);
+  line-height: var(--lh-tight);
+}
+.t-h3 {
+  font-family: var(--font-sans);
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-semibold);
+  color: var(--fg-strong);
+  line-height: var(--lh-tight);
+}
+.t-body {
+  font-family: var(--font-sans);
+  font-size: var(--fs-base);
+  font-weight: var(--fw-regular);
+  color: var(--fg-default);
+  line-height: var(--lh-normal);
+}
+.t-body-md {
+  font-family: var(--font-sans);
+  font-size: var(--fs-md);
+  font-weight: var(--fw-regular);
+  color: var(--fg-default);
+  line-height: var(--lh-normal);
+}
+.t-meta {
+  font-family: var(--font-sans);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-regular);
+  color: var(--fg-muted);
+  line-height: var(--lh-normal);
+}
+.t-label {
+  font-family: var(--font-sans);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  color: var(--fg-strong);
+}
+.t-link {
+  font-family: var(--font-sans);
+  color: var(--primary);
+  text-decoration: none;
+  cursor: pointer;
+}
+.t-link:hover { text-decoration: underline; }
+.t-code {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  background: var(--bg-subtle);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  color: var(--fg-strong);
+}
+
+body.mb-page {
+  font-family: var(--font-sans);
+  font-size: var(--fs-base);
+  color: var(--fg-default);
+  background: var(--bg-canvas);
+  line-height: var(--lh-normal);
+  -webkit-font-smoothing: antialiased;
+}

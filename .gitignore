@@ -1,0 +1,18 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+dist-electron/
+release/
+
+# TypeScript / Vite caches
+*.tsbuildinfo
+vite.config.ts.timestamp-*.mjs
+
+# Machine-local Claude Code settings (paths are user-specific)
+.claude/settings.local.json
+
+# OS / logs
+.DS_Store
+*.log
