@@ -3,7 +3,10 @@
  * analysis, prefs, naming) as a versioned JSON `.clipstudio` file.
  *
  * Audio handling: the master / session call are NOT embedded — the file stores their
- * on-disk paths (Electron imports) and the audio is re-decoded on open. Rendered
+ * on-disk paths (Electron imports) and the audio is re-decoded on open. The main process
+ * adds a `relPath` (relative to the project file) on save and resolves it first on open,
+ * so a project folder moved together with its audio still finds it; `duration` /
+ * `sampleRate` let a relinked file be checked against the original. Rendered
  * takes (saved comps) have no on-disk source, so their audio IS embedded as base64
  * 24-bit WAV. Take regions are just numbers and survive as plain JSON.
  */
@@ -36,6 +39,16 @@ interface SavedScene {
   lines: SavedLine[];
 }
 
+/** Reference to session audio on disk (not embedded). */
+export interface ProjectAudioRef {
+  name: string;
+  sourcePath?: string;
+  /** written by the main process on save */
+  relPath?: string;
+  duration?: number;
+  sampleRate?: number;
+}
+
 export interface ProjectFile {
   app: "clip-studio";
   version: number;
@@ -52,8 +65,8 @@ export interface ProjectFile {
   lineIndex: number;
   activeCharacter: string | null;
   /** re-import references; audio itself is re-decoded from disk on open */
-  audio: { name: string; sourcePath?: string } | null;
-  sessionCall: { name: string; sourcePath?: string } | null;
+  audio: ProjectAudioRef | null;
+  sessionCall: ProjectAudioRef | null;
 }
 
 function bufferToBase64(buf: ArrayBuffer): string {
@@ -86,8 +99,8 @@ export interface ProjectState {
   sceneIndex: number;
   lineIndex: number;
   activeCharacter: string | null;
-  audio: { name: string; sourcePath?: string } | null;
-  sessionCall: { name: string; sourcePath?: string } | null;
+  audio: ProjectAudioRef | null;
+  sessionCall: ProjectAudioRef | null;
 }
 
 export function serializeProject(state: ProjectState): string {

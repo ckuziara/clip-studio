@@ -17,12 +17,12 @@ import { parseTimecode } from "./utils/tabularParser";
 import { renderComp } from "./utils/compAudio";
 import { encodeWav } from "./utils/wavEncode";
 import { getAudioContext, importAudioFile, importAudioFromPath } from "./utils/audioImport";
-import { deserializeProject, serializeProject } from "./utils/project";
+import { deserializeProject, serializeProject, type ProjectAudioRef } from "./utils/project";
 import { detectRegions, matchLine, textSimilarity, transcriptForRegion } from "./utils/takeDetect";
 import { transcribeAudio } from "./utils/transcribe";
 import { computeOffsetMap, speechMask } from "./utils/align";
 import { applyInstructionMapping, classifyCallSegments } from "./utils/callMap";
-import { getBridge } from "./bridge";
+import { getBridge, type MenuCommand } from "./bridge";
 
 const DEFAULT_PREFS: Prefs = {
   norm: true,
@@ -45,7 +45,14 @@ export default function App() {
   // comp editing logic simple while the real audio engine isn't wired up yet.
   const scenesRef = useRef<Scene[]>([]);
   const [, setTick] = useState(0);
-  const bump = () => setTick((n) => n + 1);
+  /** Unsaved changes. Every scene/line/take edit goes through bump(), so it marks the project dirty. */
+  const [dirty, setDirty] = useState(false);
+  /** The .clipstudio file this session was opened from / last saved to (Electron only). */
+  const [projectPath, setProjectPath] = useState<string | null>(null);
+  const bump = () => {
+    setTick((n) => n + 1);
+    setDirty(true);
+  };
 
   const [sessionTitle, setSessionTitle] = useState("");
   const [characterName, setCharacterName] = useState("Character");
@@ -244,6 +251,7 @@ export default function App() {
       setLineIndex(0);
       setActiveCharacter(null); // new script — back to showing every character
       setCompOpen(false);
+      setDirty(true);
     } catch (err) {
       setImportError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -268,6 +276,7 @@ export default function App() {
       } else {
         setSessionCall(imported);
       }
+      setDirty(true);
     } catch (err) {
       setImportError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -761,10 +770,11 @@ export default function App() {
 
   const openProjectInputRef = useRef<HTMLInputElement>(null);
 
-  function handleSaveProject() {
+  /** ⌘S saves to the project's file; Save As (⇧⌘S) or a never-saved project asks where. Resolves true once on disk. */
+  async function handleSaveProject(saveAs = false): Promise<boolean> {
     if (scenes.length === 0) {
       setImportError("Nothing to save yet — import a script first.");
-      return;
+      return false;
     }
     const json = serializeProject({
       sessionTitle,
@@ -779,29 +789,88 @@ export default function App() {
       sceneIndex,
       lineIndex,
       activeCharacter,
-      audio: audio ? { name: audio.name, sourcePath: audio.sourcePath } : null,
-      sessionCall: sessionCall ? { name: sessionCall.name, sourcePath: sessionCall.sourcePath } : null
+      audio: audio ? { name: audio.name, sourcePath: audio.sourcePath, duration: audio.duration, sampleRate: audio.sampleRate } : null,
+      sessionCall: sessionCall
+        ? { name: sessionCall.name, sourcePath: sessionCall.sourcePath, duration: sessionCall.duration, sampleRate: sessionCall.sampleRate }
+        : null
     });
     const filename = `${(sessionTitle || "session").replace(/[\\/:*?"<>|]/g, "_")}.clipstudio`;
     const bridge = getBridge();
     if (bridge?.saveProject) {
-      void bridge
-        .saveProject(json, filename)
-        .then((path) => path && setStatusToast(`Project saved to ${path}`))
-        .catch((err) => setImportError(err instanceof Error ? err.message : String(err)));
-    } else {
-      // browser fallback: download the file
-      const url = URL.createObjectURL(new Blob([json], { type: "application/json" }));
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      a.click();
-      URL.revokeObjectURL(url);
-      setStatusToast(`Project downloaded as ${filename}`);
+      try {
+        const path = await bridge.saveProject(json, filename, projectPath ?? undefined, saveAs);
+        if (!path) return false;
+        setProjectPath(path);
+        setDirty(false);
+        setStatusToast(`Project saved to ${path}`);
+        return true;
+      } catch (err) {
+        setImportError(err instanceof Error ? err.message : String(err));
+        return false;
+      }
     }
+    // browser fallback: download the file
+    const url = URL.createObjectURL(new Blob([json], { type: "application/json" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+    setDirty(false);
+    setStatusToast(`Project downloaded as ${filename}`);
+    return true;
   }
 
-  async function restoreProject(json: string) {
+  /**
+   * Re-decode one of the project's audio files. When it isn't where the project says (main
+   * already tried the path relative to the project, then the absolute one), ask the user to
+   * locate it, and refuse a replacement whose length / sample rate doesn't match — takes are
+   * positions in the master, so a different file would silently misplace every one of them.
+   */
+  async function loadProjectAudio(
+    ref: ProjectAudioRef,
+    missing: boolean,
+    kind: "master" | "sessioncall"
+  ): Promise<{ audio: SourceAudio | null; relinked: boolean; problem?: string }> {
+    const bridge = getBridge();
+    const what = kind === "master" ? "master recording" : "session call";
+    let src = missing ? undefined : ref.sourcePath;
+    let relinked = false;
+    if (!src) {
+      if (!bridge?.pickAudio) return { audio: null, relinked, problem: `re-import ${ref.name}` };
+      src =
+        (await bridge.pickAudio(
+          `Locate the ${what} “${ref.name}”${kind === "sessioncall" ? " (Cancel to open without it)" : ""}`
+        )) ?? undefined;
+      if (!src) return { audio: null, relinked, problem: `${ref.name} not found — re-import it` };
+      relinked = true;
+    }
+    const name = relinked ? src.split(/[\\/]/).pop() || ref.name : ref.name;
+    let imported: SourceAudio;
+    try {
+      imported = await importAudioFromPath(src, name, { compact: kind === "sessioncall" });
+    } catch {
+      return { audio: null, relinked: false, problem: `couldn't read ${name}` };
+    }
+    const fmt = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, "0")}`;
+    if (ref.duration && Math.abs(imported.duration - ref.duration) > 0.05) {
+      return {
+        audio: null,
+        relinked: false,
+        problem: `${name} is ${fmt(imported.duration)} long but the project's ${what} was ${fmt(ref.duration)} — not loaded, takes wouldn't line up`
+      };
+    }
+    if (kind === "master" && ref.sampleRate && imported.sampleRate !== ref.sampleRate) {
+      return {
+        audio: null,
+        relinked: false,
+        problem: `${name} is ${imported.sampleRate / 1000} kHz but the project's master was ${ref.sampleRate / 1000} kHz — not loaded`
+      };
+    }
+    return { audio: imported, relinked };
+  }
+
+  async function restoreProject(json: string, opened?: { path: string; missing: { audio: boolean; sessionCall: boolean } }) {
     setImportError("");
     setImportBusy("project");
     try {
@@ -826,36 +895,30 @@ export default function App() {
       setFocusedTakeIdx(null);
 
       // re-decode session audio from disk (Electron); in the browser it needs a manual re-import
-      const missing: string[] = [];
+      const problems: string[] = [];
+      let relinked = false;
       setAudio(null);
       setSessionCall(null);
-      const bridge = getBridge();
       if (file.audio) {
-        if (bridge && file.audio.sourcePath) {
-          try {
-            setAudio(await importAudioFromPath(file.audio.sourcePath, file.audio.name));
-          } catch {
-            missing.push(file.audio.name);
-          }
-        } else {
-          missing.push(file.audio.name);
-        }
+        const r = await loadProjectAudio(file.audio, opened?.missing.audio ?? false, "master");
+        if (r.audio) setAudio(r.audio);
+        if (r.problem) problems.push(r.problem);
+        relinked ||= r.relinked;
       }
       if (file.sessionCall) {
-        if (bridge && file.sessionCall.sourcePath) {
-          try {
-            setSessionCall(await importAudioFromPath(file.sessionCall.sourcePath, file.sessionCall.name, { compact: true }));
-          } catch {
-            missing.push(file.sessionCall.name);
-          }
-        } else {
-          missing.push(file.sessionCall.name);
-        }
+        const r = await loadProjectAudio(file.sessionCall, opened?.missing.sessionCall ?? false, "sessioncall");
+        if (r.audio) setSessionCall(r.audio);
+        if (r.problem) problems.push(r.problem);
+        relinked ||= r.relinked;
       }
       bump();
+      setProjectPath(opened?.path ?? null);
+      // a relinked file's new location only sticks once saved
+      setDirty(relinked);
       setStatusToast(
         `Project opened — ${revived.length} asset${revived.length === 1 ? "" : "s"}` +
-          (missing.length > 0 ? ` · re-import audio: ${missing.join(", ")}` : "")
+          (relinked ? " · audio relinked, save to keep the new location" : "") +
+          (problems.length > 0 ? ` · ${problems.join("; ")}` : "")
       );
     } catch (err) {
       setImportError(err instanceof Error ? err.message : String(err));
@@ -864,17 +927,54 @@ export default function App() {
     }
   }
 
-  function handleOpenProject() {
+  function confirmDiscard(): boolean {
+    if (!dirty || scenes.length === 0) return true;
+    return window.confirm(
+      `“${sessionTitle || "This session"}” has unsaved changes. Discard them?\n\nChoose Cancel, then Save (⌘S) to keep them.`
+    );
+  }
+
+  /** Open a project: the given file (recents, Finder) or one picked in a dialog. */
+  function handleOpenProject(filePath?: string) {
+    if (!confirmDiscard()) return;
     const bridge = getBridge();
     if (bridge?.openProject) {
       void bridge
-        .openProject()
-        .then((res) => res && restoreProject(res.json))
+        .openProject(filePath)
+        .then((res) => res && restoreProject(res.json, res))
         .catch((err) => setImportError(err instanceof Error ? err.message : String(err)));
     } else {
       openProjectInputRef.current?.click(); // browser fallback: file picker
     }
   }
+
+  // Keep the window told about unsaved changes (close prompt + macOS edited dot) and the title in sync.
+  useEffect(() => {
+    const name = sessionTitle || "Clip Studio";
+    getBridge()?.setDocumentState?.({ dirty: dirty && scenes.length > 0, name, path: projectPath ?? undefined });
+    document.title = sessionTitle ? `${sessionTitle}${dirty ? " — Edited" : ""} — Clip Studio` : "Clip Studio";
+  }, [dirty, sessionTitle, projectPath, scenes.length]);
+
+  // File menu + projects opened from Finder. Handlers are read through a ref so the
+  // subscription (made once) always calls the latest closure.
+  const menuRef = useRef<(cmd: MenuCommand) => void>(() => {});
+  menuRef.current = (cmd) => {
+    if (cmd.command === "open") handleOpenProject(cmd.path);
+    if (cmd.command === "save") void handleSaveProject(false);
+    if (cmd.command === "saveAs") void handleSaveProject(true);
+    if (cmd.command === "saveAndClose") {
+      void handleSaveProject(false).then((ok) => ok && getBridge()?.closeWindow?.());
+    }
+  };
+  useEffect(() => {
+    const bridge = getBridge();
+    if (!bridge?.onMenu) return;
+    const off = bridge.onMenu((cmd) => menuRef.current(cmd));
+    void bridge.takePendingOpen?.().then((p) => {
+      if (p) menuRef.current({ command: "open", path: p });
+    });
+    return off;
+  }, []);
 
   function handleStarClick(takeIdx: number, n: number) {
     if (!line) return;
@@ -934,7 +1034,7 @@ export default function App() {
       }
       if (meta && e.key.toLowerCase() === "s") {
         e.preventDefault();
-        handleSaveProject();
+        void handleSaveProject(e.shiftKey); // ⇧⌘S = Save As
         return;
       }
       if (meta && e.key.toLowerCase() === "o") {
@@ -1030,7 +1130,7 @@ export default function App() {
         overflow: "hidden"
       }}
     >
-      <TitleBar title={sessionTitle ? `Clip Studio — ${sessionTitle}` : "Clip Studio"} />
+      <TitleBar title={sessionTitle ? `Clip Studio — ${sessionTitle}${dirty ? " — Edited" : ""}` : "Clip Studio"} />
 
       {/* browser-mode project open (Electron uses the native dialog) */}
       <input
@@ -1040,7 +1140,7 @@ export default function App() {
         style={{ display: "none" }}
         onChange={(e) => {
           const f = e.target.files?.[0];
-          if (f) void f.text().then(restoreProject);
+          if (f) void f.text().then((json) => restoreProject(json));
           e.target.value = "";
         }}
       />
@@ -1058,8 +1158,9 @@ export default function App() {
         onImportSessionCall={(f) => handleImportAudio(f, "sessioncall")}
         onOpenPrefs={() => setPrefsOpen(true)}
         onExport={handleExport}
-        onSaveProject={handleSaveProject}
-        onOpenProject={handleOpenProject}
+        onSaveProject={() => void handleSaveProject(false)}
+        onOpenProject={() => handleOpenProject()}
+        unsaved={dirty && scenes.length > 0}
       />
 
       <div className="cs-scroll" style={{ flex: 1, display: "flex", minHeight: 0, overflowX: "auto" }}>
@@ -1185,7 +1286,10 @@ export default function App() {
               />
               <NamingExportPanel
                 pattern={pattern}
-                onPatternChange={setPattern}
+                onPatternChange={(p) => {
+                  setPattern(p);
+                  setDirty(true);
+                }}
                 patternPreview={fileFor(lineIndex, 1)}
                 readyCount={readyCount}
                 reviewCount={reviewCount}
@@ -1203,6 +1307,7 @@ export default function App() {
             audioName={audio?.name ?? ""}
             onImportScript={handleImportScript}
             onImportAudio={(f) => handleImportAudio(f, "master")}
+            onOpenProject={handleOpenProject}
           />
         )}
       </div>
@@ -1287,7 +1392,13 @@ export default function App() {
         />
       )}
 
-      {prefsOpen && <PreferencesModal prefs={prefs} onChange={setPrefs} onClose={() => setPrefsOpen(false)} />}
+      {prefsOpen && <PreferencesModal
+          prefs={prefs}
+          onChange={(p) => {
+            setPrefs(p);
+            setDirty(true);
+          }}
+          onClose={() => setPrefsOpen(false)} />}
     </div>
   );
 }

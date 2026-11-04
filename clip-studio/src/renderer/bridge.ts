@@ -22,6 +22,22 @@ export interface AafEpisodeSpec {
   tracks: { name: string; clips: AafClipSpec[] }[];
 }
 
+export interface OpenedProject {
+  path: string;
+  json: string;
+  /** referenced audio that wasn't found at its relative or absolute path */
+  missing: { audio: boolean; sessionCall: boolean };
+}
+
+export interface RecentProject {
+  path: string;
+  name: string;
+  openedAt: string;
+  exists: boolean;
+}
+
+export type MenuCommand = { command: "open" | "save" | "saveAs" | "saveAndClose"; path?: string };
+
 export interface ClipStudioBridge {
   version: string;
   getFilePath(file: File): string;
@@ -37,8 +53,15 @@ export interface ClipStudioBridge {
     outDir: string,
     opts: { tcStartSec: number; fps: number }
   ): Promise<{ written: number; dir: string }>;
-  saveProject(json: string, suggestedName: string): Promise<string | null>;
-  openProject(): Promise<{ path: string; json: string } | null>;
+  saveProject(json: string, suggestedName: string, targetPath?: string, saveAs?: boolean): Promise<string | null>;
+  openProject(filePath?: string): Promise<OpenedProject | null>;
+  recentProjects(): Promise<RecentProject[]>;
+  forgetRecent(filePath: string): Promise<void>;
+  takePendingOpen(): Promise<string | null>;
+  pickAudio(title: string): Promise<string | null>;
+  setDocumentState(state: { dirty: boolean; name: string; path?: string }): void;
+  closeWindow(): void;
+  onMenu(cb: (cmd: MenuCommand) => void): () => void;
   pickOutputDir(): Promise<string | null>;
 }
 

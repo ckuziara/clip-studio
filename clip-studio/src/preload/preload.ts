@@ -37,14 +37,51 @@ contextBridge.exposeInMainWorld("clipStudio", {
     return ipcRenderer.invoke("aaf:export", episodes, outDir, opts);
   },
 
-  /** Save the project JSON via a native save dialog; returns the chosen path or null. */
-  saveProject(json: string, suggestedName: string): Promise<string | null> {
-    return ipcRenderer.invoke("project:save", json, suggestedName);
+  /** Save the project JSON — straight to targetPath, or via a save dialog (none given, or saveAs). Returns the path or null. */
+  saveProject(json: string, suggestedName: string, targetPath?: string, saveAs?: boolean): Promise<string | null> {
+    return ipcRenderer.invoke("project:save", json, suggestedName, targetPath, saveAs);
   },
 
-  /** Pick + read a project file; null when cancelled. */
-  openProject(): Promise<{ path: string; json: string } | null> {
-    return ipcRenderer.invoke("project:open");
+  /** Read a project (picking one when no path is given); null when cancelled. Media paths come back resolved. */
+  openProject(filePath?: string): Promise<{ path: string; json: string; missing: { audio: boolean; sessionCall: boolean } } | null> {
+    return ipcRenderer.invoke("project:open", filePath);
+  },
+
+  recentProjects(): Promise<{ path: string; name: string; openedAt: string; exists: boolean }[]> {
+    return ipcRenderer.invoke("project:recents");
+  },
+
+  forgetRecent(filePath: string): Promise<void> {
+    return ipcRenderer.invoke("project:forgetRecent", filePath);
+  },
+
+  /** A project opened from Finder/Dock before the renderer was ready. */
+  takePendingOpen(): Promise<string | null> {
+    return ipcRenderer.invoke("project:takePendingOpen");
+  },
+
+  /** Native file picker for relinking moved audio. */
+  pickAudio(title: string): Promise<string | null> {
+    return ipcRenderer.invoke("dialog:pickAudio", title);
+  },
+
+  /** Unsaved-changes state for the close prompt and the macOS edited dot. */
+  setDocumentState(state: { dirty: boolean; name: string; path?: string }): void {
+    ipcRenderer.send("window:documentState", state);
+  },
+
+  /** Close the window without the unsaved-changes prompt (after saving). */
+  closeWindow(): void {
+    ipcRenderer.send("window:close");
+  },
+
+  /** File menu commands: open / save / saveAs / saveAndClose. Returns an unsubscribe function. */
+  onMenu(cb: (cmd: { command: "open" | "save" | "saveAs" | "saveAndClose"; path?: string }) => void): () => void {
+    const listener = (_e: unknown, cmd: { command: "open" | "save" | "saveAs" | "saveAndClose"; path?: string }) => cb(cmd);
+    ipcRenderer.on("menu", listener);
+    return () => {
+      ipcRenderer.removeListener("menu", listener);
+    };
   },
 
   pickOutputDir(): Promise<string | null> {
