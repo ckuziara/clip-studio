@@ -41,6 +41,13 @@
     "asarUnpack": [
       "node_modules/ffmpeg-static/**"
     ],
+    "fileAssociations": [
+      {
+        "ext": "clipstudio",
+        "name": "Clip Studio Project",
+        "role": "Editor"
+      }
+    ],
     "mac": {
       "category": "public.app-category.utilities"
     },

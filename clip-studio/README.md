@@ -45,6 +45,10 @@ src/
     utils/      Script PDF parser, audio import/decode, filename + time helpers
 ```
 
+## Projects
+
+Sessions save as `.clipstudio` files (⌘S saves in place once a project has a file; ⇧⌘S Save As; ⌘O open). The header save button shows a dot and the title says "Edited" while there are unsaved changes, and closing the window with unsaved changes asks Save / Don't Save / Cancel. The start screen lists recent projects. Audio isn't copied into the project: each file is stored with an absolute path and a path relative to the project, so a folder moved together with its audio still opens; if audio has moved elsewhere you're asked to locate it, and a file whose length or sample rate doesn't match the original is refused so takes can't drift.
+
 ## Audio engine (desktop)
 
 - **FFmpeg** (`ffmpeg-static`, main process, IPC via `preload.cjs`): decode any audio format on import; export pipeline cuts selected takes from the master with loudnorm, sample-rate/bit-depth conversion, and mono downmix per Preferences, plus a `manifest.csv`. Export requires the Electron build (`npm run electron:dev`).

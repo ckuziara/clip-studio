@@ -17,6 +17,8 @@ interface AppHeaderProps {
   onExport: () => void;
   onSaveProject: () => void;
   onOpenProject: () => void;
+  /** unsaved changes — the save button shows a dot */
+  unsaved?: boolean;
 }
 
 function SourceChip({
@@ -116,7 +118,8 @@ export default function AppHeader({
   onOpenPrefs,
   onExport,
   onSaveProject,
-  onOpenProject
+  onOpenProject,
+  unsaved
 }: AppHeaderProps) {
   const iconBtn: React.CSSProperties = {
     width: 38,
@@ -182,8 +185,26 @@ export default function AppHeader({
       <button onClick={onOpenProject} title="Open project… (⌘O)" style={iconBtn}>
         📂
       </button>
-      <button onClick={onSaveProject} title="Save project (⌘S)" style={iconBtn}>
+      <button
+        onClick={onSaveProject}
+        title={unsaved ? "Save project (⌘S) — unsaved changes" : "Save project (⌘S)"}
+        style={{ ...iconBtn, position: "relative" }}
+      >
         💾
+        {unsaved && (
+          <span
+            style={{
+              position: "absolute",
+              top: 5,
+              right: 5,
+              width: 8,
+              height: 8,
+              borderRadius: "50%",
+              background: "var(--primary)",
+              boxShadow: "0 0 0 2px var(--bg-surface)"
+            }}
+          />
+        )}
       </button>
       <button onClick={onOpenPrefs} title="Preferences" style={{ ...iconBtn, fontSize: 16 }}>
         ⚙

@@ -1,4 +1,5 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { getBridge, type RecentProject } from "../bridge";
 
 interface ImportHeroProps {
   importBusy: string;
@@ -6,6 +7,8 @@ interface ImportHeroProps {
   audioName: string;
   onImportScript: (file: File) => void;
   onImportAudio: (file: File) => void;
+  /** Open a saved project — a recent one by path, or (no path) via the open dialog. */
+  onOpenProject: (path?: string) => void;
 }
 
 function ImportTile({
@@ -89,7 +92,28 @@ function ImportTile({
   );
 }
 
-export default function ImportHero({ importBusy, importError, audioName, onImportScript, onImportAudio }: ImportHeroProps) {
+function ago(iso: string): string {
+  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins} min ago`;
+  if (mins < 60 * 24) return `${Math.round(mins / 60)} h ago`;
+  return new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+}
+
+export default function ImportHero({ importBusy, importError, audioName, onImportScript, onImportAudio, onOpenProject }: ImportHeroProps) {
+  const [recents, setRecents] = useState<RecentProject[]>([]);
+  useEffect(() => {
+    getBridge()
+      ?.recentProjects?.()
+      .then(setRecents)
+      .catch(() => setRecents([]));
+  }, [importError]);
+
+  async function forget(path: string) {
+    await getBridge()?.forgetRecent?.(path);
+    setRecents((r) => r.filter((x) => x.path !== path));
+  }
+
   return (
     <div
       style={{
@@ -127,6 +151,80 @@ export default function ImportHero({ importBusy, importError, audioName, onImpor
           onFile={onImportAudio}
         />
       </div>
+      <button
+        onClick={() => onOpenProject()}
+        style={{
+          marginTop: 4,
+          height: 32,
+          padding: "0 14px",
+          background: "transparent",
+          border: "none",
+          fontFamily: "var(--font-sans)",
+          fontSize: 13,
+          fontWeight: 500,
+          color: "var(--primary)",
+          cursor: "pointer"
+        }}
+      >
+        or open a saved project… (⌘O)
+      </button>
+      {recents.length > 0 && (
+        <div style={{ width: "100%", maxWidth: 560, marginTop: 12 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--fg-muted)", marginBottom: 8 }}>
+            Recent projects
+          </div>
+          <div style={{ background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-lg)", overflow: "hidden" }}>
+            {recents.map((r, i) => (
+              <div
+                key={r.path}
+                className="cs-recent"
+                onClick={() => r.exists && !importBusy && onOpenProject(r.path)}
+                title={r.exists ? r.path : `${r.path} — not found`}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  padding: "10px 14px",
+                  borderTop: i ? "1px solid var(--border-subtle)" : "none",
+                  cursor: r.exists ? "pointer" : "default",
+                  opacity: r.exists ? 1 : 0.55
+                }}
+              >
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "var(--fg-strong)" }}>{r.name}</div>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      fontFamily: "var(--font-mono)",
+                      color: "var(--fg-muted)",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                      direction: "rtl",
+                      textAlign: "left"
+                    }}
+                  >
+                    {r.path}
+                  </div>
+                </div>
+                <span style={{ fontSize: 12, flex: "none", color: r.exists ? "var(--fg-muted)" : "var(--red-600)" }}>
+                  {r.exists ? ago(r.openedAt) : "Not found"}
+                </span>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void forget(r.path);
+                  }}
+                  title="Remove from recent projects"
+                  style={{ width: 24, height: 24, flex: "none", border: "none", background: "transparent", color: "var(--fg-muted)", cursor: "pointer", fontSize: 12 }}
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       {importError && (
         <div
           style={{

@@ -5,6 +5,8 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { closeWindow, guardClose, handleOpenFile, installMenu, nextTestAnswer, setDocumentState, takePendingOpen } from "./appShell.js";
+import { forgetRecent, readProjectFile, recentProjects, writeProjectFile } from "./projectFiles.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
@@ -245,31 +247,77 @@ ipcMain.handle("aaf:export", async (_e, episodes: AafEpisode[], outDir: string, 
 
 // ---- project save / open -------------------------------------------------
 
-ipcMain.handle("project:save", async (_e, json: string, suggestedName: string) => {
-  const win = BrowserWindow.getFocusedWindow();
-  const res = await dialog.showSaveDialog(win!, {
-    title: "Save project",
-    defaultPath: suggestedName,
-    filters: [{ name: "Clip Studio project", extensions: ["clipstudio"] }]
-  });
-  if (res.canceled || !res.filePath) return null;
-  await fs.writeFile(res.filePath, json, "utf8");
-  return res.filePath;
+/**
+ * Save the project JSON. With `targetPath` (the file the project came from) it writes there
+ * directly — plain ⌘S; otherwise, or with `saveAs`, it asks where. Returns the saved path or null.
+ */
+ipcMain.handle("project:save", async (e, json: string, suggestedName: string, targetPath?: string, saveAs?: boolean) => {
+  let file = !saveAs && targetPath ? targetPath : null;
+  if (!file) {
+    const test = nextTestAnswer();
+    if (test) file = (test.answer as string | null) ?? null;
+    else {
+      const win = BrowserWindow.fromWebContents(e.sender) ?? BrowserWindow.getFocusedWindow();
+      const res = await dialog.showSaveDialog(win!, {
+        title: saveAs ? "Save project as" : "Save project",
+        defaultPath: targetPath ? path.join(path.dirname(targetPath), suggestedName) : suggestedName,
+        filters: [{ name: "Clip Studio project", extensions: ["clipstudio"] }]
+      });
+      file = res.canceled || !res.filePath ? null : res.filePath;
+    }
+  }
+  return file ? writeProjectFile(file, json) : null;
 });
 
-ipcMain.handle("project:open", async () => {
-  const win = BrowserWindow.getFocusedWindow();
+/** Pick (or, with `filePath`, directly read) a project; media paths come back resolved. */
+ipcMain.handle("project:open", async (e, filePath?: string) => {
+  let file = filePath ?? null;
+  if (!file) {
+    const test = nextTestAnswer();
+    if (test) file = (test.answer as string | null) ?? null;
+    else {
+      const win = BrowserWindow.fromWebContents(e.sender) ?? BrowserWindow.getFocusedWindow();
+      const res = await dialog.showOpenDialog(win!, {
+        title: "Open project",
+        filters: [{ name: "Clip Studio project", extensions: ["clipstudio", "json"] }],
+        properties: ["openFile"]
+      });
+      file = res.canceled ? null : res.filePaths[0] ?? null;
+    }
+  }
+  return file ? readProjectFile(file) : null;
+});
+
+ipcMain.handle("project:recents", () => recentProjects());
+ipcMain.handle("project:forgetRecent", (_e, file: string) => forgetRecent(file));
+ipcMain.handle("project:takePendingOpen", () => takePendingOpen());
+
+/** "Locate…" for project audio that moved. */
+ipcMain.handle("dialog:pickAudio", async (e, title: string) => {
+  const test = nextTestAnswer();
+  if (test) return test.answer;
+  const win = BrowserWindow.fromWebContents(e.sender) ?? BrowserWindow.getFocusedWindow();
   const res = await dialog.showOpenDialog(win!, {
-    title: "Open project",
-    filters: [{ name: "Clip Studio project", extensions: ["clipstudio", "json"] }],
-    properties: ["openFile"]
+    title,
+    message: title,
+    properties: ["openFile"],
+    filters: [{ name: "Audio", extensions: ["wav", "wave", "bwf", "aif", "aiff", "flac", "mp3", "m4a"] }]
   });
-  if (res.canceled || res.filePaths.length === 0) return null;
-  const json = await fs.readFile(res.filePaths[0], "utf8");
-  return { path: res.filePaths[0], json };
+  return res.canceled ? null : res.filePaths[0] ?? null;
+});
+
+ipcMain.on("window:documentState", (e, state: { dirty: boolean; name: string; path?: string }) => {
+  const win = BrowserWindow.fromWebContents(e.sender);
+  if (win) setDocumentState(win, state);
+});
+ipcMain.on("window:close", (e) => {
+  const win = BrowserWindow.fromWebContents(e.sender);
+  if (win) closeWindow(win);
 });
 
 ipcMain.handle("dialog:pickOutputDir", async () => {
+  const test = nextTestAnswer();
+  if (test) return test.answer;
   const win = BrowserWindow.getFocusedWindow();
   const res = await dialog.showOpenDialog(win!, {
     title: "Choose export folder",
@@ -294,6 +342,8 @@ function createWindow() {
     }
   });
 
+  guardClose(win);
+
   if (isDev) {
     win.loadURL("http://localhost:5173");
     win.webContents.openDevTools({ mode: "detach" });
@@ -302,7 +352,11 @@ function createWindow() {
   }
 }
 
+// before "ready": macOS delivers a .clipstudio opened from Finder at launch early
+handleOpenFile();
+
 app.whenReady().then(() => {
+  installMenu();
   createWindow();
 
   app.on("activate", () => {

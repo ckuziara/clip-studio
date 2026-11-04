@@ -49,3 +49,7 @@ button {
 input {
   font-family: inherit;
 }
+
+.cs-recent:hover {
+  background: var(--slate-50);
+}
